@@ -1,0 +1,9 @@
+# B33 Database Configuration
+# Cloudflare D1 database settings
+
+name = "b33"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "b33"
+database_id = "4ad6c776-3c59-4c89-9c5a-068329278c30"

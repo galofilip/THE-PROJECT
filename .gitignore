@@ -1,0 +1,22 @@
+# Node
+node_modules/
+package-lock.json
+
+# Go binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment / secrets
+.env
+*.pem
+*.key
