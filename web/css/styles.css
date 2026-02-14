@@ -1,0 +1,380 @@
+:root {
+    --b33-bg: #0d1117;
+    --b33-surface: #161b22;
+    --b33-border: #30363d;
+    --b33-accent: #58a6ff;
+    --b33-green: #3fb950;
+    --b33-red: #f85149;
+    --b33-yellow: #d29922;
+    --b33-orange: #db6d28;
+    --b33-text: #e6edf3;
+    --b33-muted: #8b949e;
+}
+
+body {
+    background-color: var(--b33-bg);
+    color: var(--b33-text);
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+}
+
+/* Login */
+.login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 1rem;
+}
+
+.login-card {
+    background: var(--b33-surface);
+    border: 1px solid var(--b33-border);
+    border-radius: 8px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 0 30px rgba(63, 185, 80, 0.1);
+}
+
+.login-title {
+    font-family: 'Courier New', monospace;
+    font-size: 3rem;
+    font-weight: 700;
+    text-align: center;
+    color: var(--b33-green);
+    text-shadow: 0 0 20px rgba(63, 185, 80, 0.4);
+    margin-bottom: 0;
+}
+
+.login-subtitle {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    text-align: center;
+    color: var(--b33-muted);
+    letter-spacing: 0.3em;
+    margin-bottom: 2rem;
+}
+
+/* Navbar */
+.b33-navbar {
+    background-color: var(--b33-surface);
+    border-bottom: 1px solid var(--b33-border);
+}
+
+.b33-brand {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    font-size: 1.4rem;
+    color: var(--b33-green) !important;
+}
+
+.navbar-nav .nav-link {
+    color: var(--b33-muted);
+    transition: color 0.2s;
+}
+
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link.active {
+    color: var(--b33-accent);
+}
+
+/* Cards */
+.b33-card {
+    background: var(--b33-surface);
+    border: 1px solid var(--b33-border);
+    border-radius: 6px;
+}
+
+.stat-card {
+    background: var(--b33-surface);
+    border: 1px solid var(--b33-border);
+    border-left: 4px solid var(--b33-accent);
+    border-radius: 6px;
+    padding: 1.25rem;
+}
+
+.stat-card .stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.stat-card .stat-label {
+    color: var(--b33-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-card.stat-scans { border-left-color: var(--b33-accent); }
+.stat-card.stat-scans .stat-value { color: var(--b33-accent); }
+.stat-card.stat-vulns { border-left-color: var(--b33-red); }
+.stat-card.stat-vulns .stat-value { color: var(--b33-red); }
+.stat-card.stat-active { border-left-color: var(--b33-green); }
+.stat-card.stat-active .stat-value { color: var(--b33-green); }
+.stat-card.stat-tasks { border-left-color: var(--b33-yellow); }
+.stat-card.stat-tasks .stat-value { color: var(--b33-yellow); }
+
+/* Tables */
+.b33-table {
+    color: var(--b33-text);
+}
+
+.b33-table thead th {
+    background: var(--b33-surface);
+    border-bottom: 2px solid var(--b33-border);
+    color: var(--b33-muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.b33-table tbody tr {
+    border-bottom: 1px solid var(--b33-border);
+    transition: background 0.15s;
+}
+
+.b33-table tbody tr:hover {
+    background: rgba(88, 166, 255, 0.05);
+}
+
+.b33-table td {
+    vertical-align: middle;
+    font-size: 0.9rem;
+}
+
+/* Risk badges */
+.badge-critical { background-color: var(--b33-red); }
+.badge-high { background-color: var(--b33-orange); }
+.badge-medium { background-color: var(--b33-yellow); color: #000; }
+.badge-low { background-color: var(--b33-accent); }
+.badge-none { background-color: var(--b33-muted); }
+
+/* Status badges */
+.badge-active {
+    background-color: var(--b33-green);
+    animation: pulse 2s infinite;
+}
+
+.badge-inactive { background-color: var(--b33-muted); }
+.badge-removed { background-color: var(--b33-red); }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Status dots */
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+}
+
+.status-dot.active { background-color: var(--b33-green); }
+.status-dot.inactive { background-color: var(--b33-muted); }
+.status-dot.removed { background-color: var(--b33-red); }
+
+/* Monospace for technical data */
+.mono {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+}
+
+/* Filter bar */
+.filter-bar {
+    background: var(--b33-surface);
+    border: 1px solid var(--b33-border);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* Detail panels */
+.detail-row {
+    background: rgba(22, 27, 34, 0.8);
+    border-left: 3px solid var(--b33-accent);
+}
+
+.detail-row pre {
+    background: var(--b33-bg);
+    color: var(--b33-text);
+    padding: 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Infected PCs - two panel */
+.pc-list-card {
+    background: var(--b33-surface);
+    border: 1px solid var(--b33-border);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.pc-list-card:hover,
+.pc-list-card.selected {
+    border-color: var(--b33-accent);
+}
+
+.pc-list-card .pc-hostname {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.pc-list-card .pc-meta {
+    font-size: 0.8rem;
+    color: var(--b33-muted);
+}
+
+/* Command output */
+.command-output {
+    background: var(--b33-bg);
+    color: var(--b33-green);
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* Form controls dark override */
+.form-control, .form-select {
+    background-color: var(--b33-bg);
+    border-color: var(--b33-border);
+    color: var(--b33-text);
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: var(--b33-bg);
+    border-color: var(--b33-accent);
+    color: var(--b33-text);
+    box-shadow: 0 0 0 0.2rem rgba(88, 166, 255, 0.15);
+}
+
+/* Buttons */
+.btn-exploit {
+    background-color: var(--b33-red);
+    border-color: var(--b33-red);
+    color: #fff;
+    font-size: 0.8rem;
+    padding: 0.2rem 0.6rem;
+}
+
+.btn-exploit:hover {
+    background-color: #da3633;
+    border-color: #da3633;
+    color: #fff;
+}
+
+/* Section headers */
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.section-header h2 {
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+/* Loading spinner */
+.loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 3rem;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: var(--b33-muted);
+}
+
+.empty-state h5 {
+    color: var(--b33-muted);
+}
+
+/* Toast customization */
+.toast {
+    background: var(--b33-surface);
+    border: 1px solid var(--b33-border);
+    color: var(--b33-text);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .stat-card .stat-value {
+        font-size: 1.5rem;
+    }
+
+    .filter-bar {
+        padding: 0.75rem;
+    }
+
+    .filter-bar .row > div {
+        margin-bottom: 0.5rem;
+    }
+
+    .b33-table td, .b33-table th {
+        font-size: 0.8rem;
+        padding: 0.4rem;
+    }
+
+    .login-card {
+        padding: 1.5rem;
+    }
+
+    .login-title {
+        font-size: 2.5rem;
+    }
+}
+
+/* Chart container */
+.chart-container {
+    position: relative;
+    height: 250px;
+}
+
+/* Tab content spacing */
+.tab-content {
+    padding-top: 1rem;
+}
+
+/* Danger zone */
+.danger-zone {
+    border: 1px solid var(--b33-red);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.danger-zone h6 {
+    color: var(--b33-red);
+}
+
+/* Scrollable panels */
+.pc-list-scroll {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+}
+
+.command-history-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+}
