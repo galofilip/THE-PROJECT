@@ -1,0 +1,8 @@
+.git
+.env
+*.exe
+*.dll
+node_modules/
+database/
+*.drawio.png
+.claude/

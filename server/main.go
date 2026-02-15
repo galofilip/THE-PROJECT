@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -59,6 +61,16 @@ func main() {
 	// Logs - JWT required (web interface)
 	mux.Handle("/api/logs/exploits", JWTAuthMiddleware(cfg.JWTSecret, http.HandlerFunc(logHandler.HandleExploitLogs)))
 	mux.Handle("/api/logs/c2", JWTAuthMiddleware(cfg.JWTSecret, http.HandlerFunc(logHandler.HandleC2Logs)))
+
+	// Serve static web files if directory exists
+	webDir := os.Getenv("WEB_DIR")
+	if webDir == "" {
+		webDir = "web"
+	}
+	if info, err := os.Stat(webDir); err == nil && info.IsDir() {
+		log.Printf("Serving web UI from %s", webDir)
+		mux.Handle("/", spaFileHandler(webDir))
+	}
 
 	// Apply global middleware: CORS, then logging
 	handler := CORSMiddleware(LoggingMiddleware(mux))
@@ -126,6 +138,25 @@ func deref(s *string) string {
 func jsonPretty(v interface{}) string {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	return string(b)
+}
+
+// spaFileHandler serves static files from dir, falling back to index.html for SPA routing.
+func spaFileHandler(dir string) http.Handler {
+	fs := http.Dir(dir)
+	fileServer := http.FileServer(fs)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Try to serve the requested file
+		path := filepath.Clean(r.URL.Path)
+		if path == "/" {
+			path = "/index.html"
+		}
+		if _, err := os.Stat(filepath.Join(dir, path)); err == nil {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		// File not found - serve index.html for SPA routing
+		http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+	})
 }
 
 // unused but needed by fmt import

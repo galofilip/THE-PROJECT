@@ -1,5 +1,5 @@
 const B33Api = {
-    _serverUrl: localStorage.getItem('b33_server_url') || 'http://localhost:8080',
+    _serverUrl: localStorage.getItem('b33_server_url') || '',
     _token: localStorage.getItem('b33_token') || null,
 
     setServerUrl(url) {
