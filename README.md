@@ -22,7 +22,7 @@
 
 ### What is B33?
 
-B33 is a portable penetration testing device built on a Raspberry Pi Pico 2WH microcontroller. It's designed as an educational tool for learning about cybersecurity, network vulnerabilities, and defensive security measures.
+B33 is a portable penetration testing device built on a Raspberry Pi 4 (main scanner/controller) and a Raspberry Pi Pico 2WH (USB HID dongle). It's designed as an educational tool for learning about cybersecurity, network vulnerabilities, and defensive security measures.
 
 ### Purpose
 
@@ -45,38 +45,37 @@ B33 is a portable penetration testing device built on a Raspberry Pi Pico 2WH mi
 B33 uses a cloud-based architecture for scalability and flexibility:
 
 ```
-┌─────────────────┐
-│   Raspberry Pi  │
-│   Pico 2WH      │──┐
-│   (Scanner)     │  │
-└─────────────────┘  │
-                     │
-                     ├──> ┌─────────────────┐
-                     │    │  Go Server      │
-                     │    │  - C2 Backend   │
-                     │    │  - Task Queue   │──┐
-                     │    │  - Public Scan  │  │
-                     │    └─────────────────┘  │
-                     │                         │
-┌─────────────────┐ │                         │
-│  Web Interface  │ │                         │
-│  (PC/Phone)     │─┘                         │
-│  Static HTML/JS │                           │
-└─────────────────┘                           │
-                                              │
-                                              ├──> ┌────────────────┐
-                                              │    │  Cloudflare D1 │
-                                              │    │  Databases     │
-                                              │    │  - Findings    │
-                                              │    │  - Backdoors   │
-                                              │    │  - Tasks       │
-                                              │    └────────────────┘
-                                              │
-                                              └──> ┌────────────────┐
-                                                   │  Internet APIs │
-                                                   │  - NVD (CVE)   │
-                                                   │  - VulnDB      │
-                                                   └────────────────┘
+┌──────────────────────────────┐
+│   Raspberry Pi 4 (2GB)       │──┐
+│   Main Scanner + Controller  │  │
+│   - LAN scanning             │  │
+│   - Server polling           │  │  WiFi
+│   - OLED display + buttons   │  │
+│  ┌───────────────────────┐   │  │
+│  │  Pico 2WH (USB HID)   │   │  │
+│  │  - USB keyboard emu   │   │  │
+│  └───────────────────────┘   │  │
+└──────────────────────────────┘  │
+  (Pi 4 controls Pico via USB)    │
+                                  ├──> ┌─────────────────┐
+                                  │    │  Go Server      │
+                                  │    │  - C2 Backend   │
+                                  │    │  - Task Queue   │──┐
+                                  │    │  - Public Scan  │  │
+                                  │    └─────────────────┘  │
+                                  │                         │
+┌─────────────────┐               │                         │
+│  Web Interface  │               │                         │
+│  (PC/Phone)     │───────────────┘                         │
+│  Static HTML/JS │                                         │
+└─────────────────┘                                         │
+                                                            │
+                                              ┌─────────────▼──────┐
+                                              │  Cloudflare D1     │
+                                              │  - Findings        │
+                                              │  - Backdoors       │
+                                              │  - Tasks           │
+                                              └────────────────────┘
 ```
 
 **Key Features**:
@@ -92,11 +91,23 @@ B33 uses a cloud-based architecture for scalability and flexibility:
 
 ### 2.1 Current Hardware (What We Have)
 
+✅ **Raspberry Pi 4 Model B (2GB RAM)**
+- Main portable scanner and controller
+- Quad-core ARM Cortex-A72 @ 1.8GHz, 2GB LPDDR4 RAM
+- Built-in dual-band WiFi (2.4GHz + 5GHz)
+- Boots from micro SD card, runs Raspberry Pi OS Lite (full Linux)
+- Connects to OLED display + buttons via GPIO
+- Controls Pico 2WH via USB serial
+
 ✅ **Raspberry Pi Pico 2WH**
-- Wireless microcontroller with WiFi
+- USB HID dongle — plugged into target PC for keyboard emulation
 - CircuitPython support
-- USB HID capabilities
+- USB HID capabilities (emulates keyboard)
 - 264KB RAM, 2MB flash
+- Receives commands from Pi 4 over USB serial
+
+✅ **Micro SD Card**
+- OS storage for Raspberry Pi 4
 
 ✅ **ECO 600 PD Power Bank**
 - Portable power supply
@@ -438,47 +449,56 @@ async function requestExploit(targetIp, cveId) {
 
 ## Software Architecture
 
-### 4.1 Firmware (CircuitPython on Pico)
+### 4.1 Firmware
 
-**Main Components**:
+#### Raspberry Pi 4 (Python on Raspberry Pi OS Lite)
+
+**Main components** (`pi4/` directory):
 
 ```
-code.py                  # Entry point, menu system, button handling
-├── scanner.py          # Network scanning functions (private IP only)
-├── backdoor.py         # USB HID backdoor deployment logic
-├── exploit.py          # Automated exploitation modules
-├── cloudflare_api.py   # Push scan results to D1 databases
-├── server_poller.py    # Poll Go server every 30 seconds (async)
-├── vulnerability_api.py # Fetch vulnerability data from internet APIs
-├── display.py          # Screen rendering and UI
-├── wifi_manager.py     # WiFi connection handling
-└── config.py           # Configuration settings
+pi4/main.py              # Entry point, asyncio event loop, OLED menu
+├── config.py           # Load settings from /boot/b33_settings.json
+├── scanner.py          # Host discovery, port scan, CVE lookup (NVD API)
+├── api_client.py       # HTTP client — poll, push_scan, health_check
+├── poller.py           # 30s poll loop, receives tasks, dispatches them
+├── task_runner.py      # Executes tasks by type, reports results
+├── hid_controller.py   # Sends HID commands to Pico via USB serial (pyserial)
+├── display.py          # SSD1306 OLED wrapper (luma.oled + Pillow)
+├── buttons.py          # GPIO button handler (gpiozero) — DOWN + ENTER
+├── wifi_manager.py     # WiFi helpers (nmcli / subprocess)
+└── requirements.txt    # pip dependencies
 ```
-
-#### CircuitPython with Async/Concurrency
 
 Using `asyncio` for concurrent operations:
 ```python
 import asyncio
 
 async def main():
-    # Run multiple tasks concurrently
-    await asyncio.gather(
-        scan_network(),      # Scan networks
-        poll_server(),       # Poll server every 30s
-        update_display(),    # Update display
-        handle_buttons()     # Handle button input
-    )
+    asyncio.create_task(poller.run())   # background polling
+    await menu_loop()                   # foreground UI
 
 asyncio.run(main())
 ```
 
-**Advantages**:
-- ✅ Easier USB HID implementation
-- ✅ Better hardware library support
-- ✅ Native async support for multitasking
-- ✅ More Pythonic syntax
-- ✅ Active community and documentation
+**Key Pi 4 libraries**:
+- `requests` — HTTP to Go server
+- `luma.oled` + `Pillow` — SSD1306 OLED display
+- `gpiozero` — button GPIO input
+- `pyserial` — USB serial to Pico
+
+#### Raspberry Pi Pico 2WH (CircuitPython — HID only)
+
+**Main components** (`pico/` directory):
+
+```
+pico/code.py             # Listens on USB serial, executes HID on command
+└── hid_payload.py      # Windows + Linux keyboard sequences
+```
+
+The Pico sits connected to the Pi 4 via USB. When a backdoor deploy is triggered, Pi 4 unplugs the Pico from its own USB, plugs it into the target PC, and the Pico emulates a keyboard to type the backdoor deployment commands. (Alternatively, the Pico can be pre-staged and commanded via serial.)
+
+**Key Pico libraries** (from Adafruit CircuitPython Bundle):
+- `adafruit_hid/` — USB HID keyboard emulation
 
 ### 4.2 Web Interface Files
 
@@ -783,66 +803,43 @@ Cache frequently accessed CVEs on Go server to:
 
 > **Note**: Hardware setup happens **during the project** as components are acquired, not as a separate phase.
 
-### Phase 1: Cloud Infrastructure Setup (Week 1)
-**Duration**: 10-15 hours
+### Phase 1: Cloud Infrastructure Setup ✅ COMPLETE
+- Cloudflare D1 database created with 6-table schema
+- Cloudflare API access configured
+- All database CRUD operations tested
 
-- [ ] Set up Cloudflare D1 databases (findings, backdoors, tasks)
-- [ ] Create D1 database schemas (SQL scripts)
-- [ ] Set up Cloudflare API access and tokens
-- [ ] Test D1 database CRUD operations
-- [ ] Document API endpoints and authentication
+### Phase 2: Go Server ✅ COMPLETE
+- Go server with full REST API, JWT auth, API key auth
+- Cloudflare D1 integration via REST client
+- Deployed to Render: https://the-project-gukh.onrender.com
 
-### Phase 2: Go Server Extension (Week 2-3)
-**Duration**: 20-30 hours
+### Phase 3: Web UI ✅ COMPLETE
+- Single-page app (SPA) with dark theme
+- Dashboard, private scans, public scans, tasks, C2, logs pages
+- Bootstrap 5 + Chart.js 4
 
-- [ ] Extend existing Go backdoor server with new features:
-  - [ ] Task queue API for Pico
-  - [ ] Public IP scanning engine
-  - [ ] Cloudflare D1 integration
-  - [ ] Web interface API endpoints
-- [ ] Implement authentication (JWT tokens, API keys)
-- [ ] Test server with mock data
-- [ ] Deploy server to hosting platform
+### Phase 4: Cloud Deployment ✅ COMPLETE
+- Docker multi-stage build (Go binary + web assets)
+- Render auto-deploy from GitHub main branch
 
-### Phase 3: Core Scanning Features (Week 4-5)
-**Duration**: 20-30 hours
+### Phase 5: Pi 4 + Pico Firmware ✅ COMPLETE
+- Pi 4 Python firmware: `pi4/` directory
+  - LAN scanner (TCP host discovery, port scan, NVD CVE lookup)
+  - Server poller (30s background task)
+  - OLED display driver (luma.oled, SSD1306/SH1106)
+  - GPIO button handler (gpiozero)
+  - HID controller (sends commands to Pico via pyserial)
+- Pico CircuitPython firmware: `pico/` directory
+  - USB HID keyboard emulator (Windows + Linux payloads)
+  - Listens for commands from Pi 4 over USB serial
 
-- [ ] **Acquire hardware**: OLED display, buttons
-- [ ] Wire up basic Pico setup on breadboard
-- [ ] Install CircuitPython on Pico
-- [ ] Implement private IP scanner:
-  - [ ] Ping sweep
-  - [ ] ARP scanning
-  - [ ] Port scanning
-- [ ] Build basic display menu
-- [ ] Implement vulnerability API integration (NVD)
-- [ ] Test with known vulnerable services
-- [ ] Push scan results to D1
+### Phase 6: Backdoor Agent (Planned)
+- [ ] Go backdoor binary (Windows + Linux)
+- [ ] Persistence mechanisms (scheduled tasks, cron)
+- [ ] C2 communication with Go server
+- [ ] Download endpoints on server (`/agent/windows`, `/agent/linux`)
 
-### Phase 4: Server Polling & Task Queue (Week 6)
-**Duration**: 10-15 hours
-
-- [ ] Implement server polling on Pico (every 30 seconds)
-- [ ] Use asyncio for concurrent operations:
-  - [ ] Scan networks while polling server
-  - [ ] Update display while scanning
-  - [ ] Handle button input without blocking
-- [ ] Test task queue (exploitation requests)
-- [ ] Verify D1 data push from Pico
-- [ ] Add error handling and retries
-
-### Phase 5: Backdoor Feature (Week 7-8)
-**Duration**: 15-25 hours
-
-- [ ] Implement USB HID emulation on Pico (keyboard mode)
-- [ ] Create payload delivery scripts
-- [ ] Integrate with existing Go backdoor binary
-- [ ] Build persistence mechanisms (Windows/Linux)
-- [ ] Test on authorized systems only (your own PC)
-- [ ] Push infected PC data to D1
-- [ ] Implement backdoor removal feature
-
-### Phase 6: Web Interface (Week 9-10)
+### Phase 7: Web Interface (Week 9-10)
 **Duration**: 20-30 hours
 
 - [ ] Build static HTML/CSS frontend:
@@ -1031,16 +1028,17 @@ B33 is designed to help you:
 
 ### Hardware Costs (USD)
 
-#### Current (Already Owned)
+#### Current (Already Owned / Ordered)
+- ✅ Raspberry Pi 4 (2GB): **~$35** (ordered, arriving soon)
 - ✅ Raspberry Pi Pico 2WH: **$7** (owned)
 - ✅ ECO 600 PD Power Bank: **$50-80** (owned)
+- ✅ SSD1306/SH1106 OLED (1.3", 128x64): **~$5** (ordered)
+- ✅ Micro SD Card: **~$5** (ordered)
+- ✅ Breadboard + Jumper Wires (30cm): **~$5** (ordered)
 
-#### Required for MVP (Basic functional version)
-- OLED Display (128x64, I2C): $5-10
-- 2× Tactile Buttons: $1-2
-- Jumper Wires & Breadboard: $5-10
-- USB Cable (micro/USB-C): $3-5
-- **MVP Total**: **~$15-25**
+#### Still Needed
+- 2× Tactile Push Buttons: **$1-2** (buy locally)
+- **Remaining Total**: **~$1-2**
 
 #### Future Enhancements (Complete device in enclosure)
 - Better TFT Display (2.8" touchscreen): $15-25
@@ -1158,13 +1156,15 @@ B33 is designed to help you:
 ## Notes and Important Information
 
 ### Technical Limitations
-- The Raspberry Pi Pico 2WH has limited resources (264KB RAM, 2MB flash)
-- No local storage needed - all data stored in Cloudflare D1
+- Pi 4 has 2GB RAM — sufficient for scanning and Python runtime
+- Pico 2WH has limited resources (264KB RAM, 2MB flash) — used for HID only
+- No local storage needed — all data stored in Cloudflare D1
 - ECO 600 PD power bank provides approximately 8-12 hours of runtime
-- WiFi range limited to standard 2.4GHz (no 5GHz support on Pico 2WH)
+- Pi 4 WiFi supports both 2.4GHz and 5GHz
 
 ### Technology Choices
-- **CircuitPython**: Used for Pico firmware development with async support
+- **Python 3 (Pi 4)**: Full CPython on Raspberry Pi OS Lite for scanning and control
+- **CircuitPython (Pico 2WH)**: Used for USB HID keyboard emulation only
 - **Go**: Used for cross-platform backdoor and server implementation
 - **Cloudflare D1**: Cloud database for scalability and accessibility
 - **Static HTML/JS**: Web interface requires no server hosting
@@ -1217,8 +1217,9 @@ This project is provided for educational purposes only. The creator assumes no l
 **Status**: In Development
 
 ### Technologies Used
-- Raspberry Pi Pico 2WH (CircuitPython)
-- Go (Backdoor & Server)
+- Raspberry Pi 4 (Python 3, Raspberry Pi OS Lite)
+- Raspberry Pi Pico 2WH (CircuitPython — HID only)
+- Go (Server + future backdoor agent)
 - Cloudflare D1 (Database)
 - HTML/CSS/JavaScript (Web Interface)
 - NVD API (Vulnerability Data)
@@ -1237,5 +1238,5 @@ For questions about this project:
 
 ---
 
-**Last Updated**: February 2026
-**Version**: 1.0 (Planning Phase)
+**Last Updated**: March 2026
+**Version**: 1.5 (Phase 5 Complete — Pi 4 + Pico firmware written, hardware arriving)

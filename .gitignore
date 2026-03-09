@@ -20,3 +20,9 @@ Thumbs.db
 .env
 *.pem
 *.key
+
+# Pi 4 firmware secrets
+pi4/b33_settings.json
+
+# Pico secrets
+pico/settings.toml

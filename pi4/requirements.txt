@@ -1,0 +1,7 @@
+requests
+luma.oled
+Pillow
+gpiozero
+pyserial
+RPi.GPIO
+smbus2
