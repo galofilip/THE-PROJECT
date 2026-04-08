@@ -25,6 +25,8 @@ def _blank():
 
 
 def show_text(lines):
+    if not _device:
+        return
     img = _blank()
     draw = ImageDraw.Draw(img)
     for i, line in enumerate(lines[:5]):
@@ -33,6 +35,8 @@ def show_text(lines):
 
 
 def show_menu(title, items, selected_idx):
+    if not _device:
+        return
     img = _blank()
     draw = ImageDraw.Draw(img)
     draw.text((0, 0), title, font=_FONT, fill=255)
@@ -45,6 +49,8 @@ def show_menu(title, items, selected_idx):
 
 
 def show_progress(label, current, total):
+    if not _device:
+        return
     img = _blank()
     draw = ImageDraw.Draw(img)
     draw.text((0, 0), label, font=_FONT, fill=255)
@@ -59,6 +65,8 @@ def show_progress(label, current, total):
 
 
 def show_status(msg, detail=""):
+    if not _device:
+        return
     img = _blank()
     draw = ImageDraw.Draw(img)
     draw.text((0, 10), msg, font=_FONT, fill=255)
