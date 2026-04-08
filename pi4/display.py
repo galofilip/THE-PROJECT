@@ -3,7 +3,7 @@ from luma.oled.device import ssd1306, sh1106
 from PIL import Image, ImageDraw, ImageFont
 
 # Change to sh1106 if your display board has that chip printed on the back.
-_DRIVER = ssd1306
+_DRIVER = sh1106
 
 _WIDTH = 128
 _HEIGHT = 64
