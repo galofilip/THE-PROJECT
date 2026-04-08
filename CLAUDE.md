@@ -9,6 +9,7 @@ B33 is a portable penetration testing device for **educational purposes only**. 
 - ✅ Phase 3: Web UI (SPA, dark theme, Bootstrap 5 + Chart.js 4)
 - ✅ Phase 4: Cloud deployment (Render, Docker)
 - ✅ Phase 5: Pi 4 firmware (Python) + Pico HID firmware (CircuitPython)
+- ✅ Phase 5.5: Pi 4 hardware setup — OS flashed to USB stick, SSH working, OLED wired and confirmed working (SH1106 driver)
 - ⏳ Phase 6+: Backdoor agent, public IP scanner
 
 **Commit after every phase.**
@@ -21,7 +22,9 @@ B33 is a portable penetration testing device for **educational purposes only**. 
 | Raspberry Pi Pico 2WH | USB HID dongle — plugged into target PC to type backdoor commands |
 | SSD1306 OLED (128x64) | Display connected to Pi 4 via I2C |
 | 2x Tactile buttons | Navigation (DOWN + ENTER), connected to Pi 4 GPIO |
-| Micro SD card | OS storage for Pi 4 |
+| Micro SD card | OS storage for Pi 4 (unused — Pi boots from USB stick instead) |
+| USB stick (14.3GB) | Pi 4 boot drive — Raspberry Pi OS Lite 64-bit flashed here |
+| USB micro SD card reader | **NOT YET BOUGHT** — needed to flash OS onto micro SD from Windows laptop (laptop slot is full-size SD only) |
 
 ## Architecture
 
