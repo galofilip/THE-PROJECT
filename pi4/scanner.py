@@ -147,7 +147,8 @@ async def run_lan_scan(wifi_manager, api_client, display=None):
             result = scan_host(ip, timeout)
             result["network_ssid"] = ssid
             result["network_bssid"] = bssid
-            api_client.push_scan(result)
+            ok = api_client.push_scan(result)
+            print(f"[scanner] push_scan {ip}: {'ok' if ok else 'FAILED'}")
             found += 1
 
         await asyncio.sleep(0)  # yield to event loop
