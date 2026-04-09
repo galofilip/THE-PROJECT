@@ -17,6 +17,9 @@ def init():
 
 async def read_event():
     """Block until a button is pressed; return 'down' or 'enter'."""
+    if _btn_down is None or _btn_enter is None:
+        await asyncio.sleep(9999)
+        return "enter"
     while True:
         if _btn_down.is_pressed:
             await asyncio.sleep(_DEBOUNCE_S)
