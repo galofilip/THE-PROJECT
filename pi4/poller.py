@@ -22,12 +22,16 @@ async def run(api_client, task_runner, display, poll_interval, cfg):
             completed = list(_pending_results)
             _pending_results.clear()
 
+            print(f"[poller] Polling server...")
             tasks = api_client.poll(completed_tasks=completed if completed else None)
+            print(f"[poller] Got {len(tasks)} task(s)")
             for task in tasks:
                 asyncio.create_task(task_runner.dispatch(task, api_client, cfg))
 
             # 2. Fetch approved exploit tasks (user reviewed and approved in web UI)
             approved = api_client.get_approved_exploits()
+            if approved:
+                print(f"[poller] Got {len(approved)} approved exploit(s)")
             for task in approved:
                 asyncio.create_task(task_runner.dispatch_approved(task, api_client))
 
