@@ -10,7 +10,9 @@ B33 is a portable penetration testing device for **educational purposes only**. 
 - ✅ Phase 4: Cloud deployment (Render, Docker)
 - ✅ Phase 5: Pi 4 firmware (Python) + Pico HID firmware (CircuitPython)
 - ✅ Phase 5.5: Pi 4 hardware setup — OS flashed to USB stick, SSH working, OLED wired and confirmed working (SH1106 driver)
-- ⏳ Phase 6+: Backdoor agent, public IP scanner
+- 🔄 Phase 6a: AI exploit generation (Gemini 2.5 Pro) + human review UI — implemented, debugging push_scan failure
+- ⏳ Phase 6b: Backdoor agent binary, persistence, C2 web UI
+- ⏳ Phase 7: Public IP scanner (server-side)
 
 **Commit after every phase.**
 
