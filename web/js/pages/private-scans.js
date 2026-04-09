@@ -1,9 +1,11 @@
 const PrivateScansPage = {
     _data: [],
+    _reviewInterval: null,
 
     async render() {
         const el = document.getElementById('page-private-scans');
         el.innerHTML = `
+            <div id="priv-review-section"></div>
             <div class="section-header">
                 <h2>Private IP Scans</h2>
                 <button class="btn btn-sm btn-outline-secondary" id="priv-refresh">Refresh</button>
@@ -44,7 +46,8 @@ const PrivateScansPage = {
         `;
 
         this._attachHandlers();
-        await this.loadData();
+        await Promise.all([this.loadData(), this.loadReview()]);
+        this._reviewInterval = setInterval(() => this.loadReview(), 10000);
     },
 
     _attachHandlers() {
@@ -166,6 +169,75 @@ const PrivateScansPage = {
         if (row) row.classList.toggle('d-none');
     },
 
+    async loadReview() {
+        const section = document.getElementById('priv-review-section');
+        if (!section) return;
+        try {
+            const res = await B33Api.getTasks({ status: 'pending_review' });
+            const tasks = (res.data || []).filter(t => t.task_type === 'exploit');
+            this._renderReview(tasks);
+        } catch (err) {
+            // silently ignore — review section is non-critical
+        }
+    },
+
+    _renderReview(tasks) {
+        const section = document.getElementById('priv-review-section');
+        if (!section) return;
+        if (tasks.length === 0) {
+            section.innerHTML = '';
+            return;
+        }
+        section.innerHTML = `
+            <div class="card mb-3 border-warning">
+                <div class="card-header text-warning">
+                    <strong>⚠ Pending Exploit Review</strong> — ${tasks.length} task(s) waiting for your approval
+                </div>
+                <div class="card-body p-0">
+                    ${tasks.map(t => this._renderReviewCard(t)).join('')}
+                </div>
+            </div>
+        `;
+        section.querySelectorAll('[data-review-action]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const action = btn.dataset.reviewAction;
+                const taskId = btn.dataset.taskId;
+                this._handleReview(taskId, action);
+            });
+        });
+    },
+
+    _renderReviewCard(task) {
+        const code = B33Utils.escapeHtml(task.result || '(no code)');
+        return `
+            <div class="p-3 border-bottom">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span class="badge bg-warning text-dark me-1">REVIEW REQUIRED</span>
+                        <strong class="mono">${B33Utils.escapeHtml(task.target_ip || 'unknown')}</strong>
+                        <span class="text-muted ms-2">${B33Utils.escapeHtml(task.vulnerability_id || '')}</span>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-success me-1" data-review-action="approve" data-task-id="${B33Utils.escapeHtml(task.task_id)}">✅ Approve & Run</button>
+                        <button class="btn btn-sm btn-danger" data-review-action="reject" data-task-id="${B33Utils.escapeHtml(task.task_id)}">❌ Reject</button>
+                    </div>
+                </div>
+                <pre class="bg-dark text-light p-2 rounded small" style="max-height:300px;overflow-y:auto">${code}</pre>
+            </div>
+        `;
+    },
+
+    async _handleReview(taskId, action) {
+        try {
+            const status = action === 'approve' ? 'approved' : 'rejected';
+            await B33Api.updateTask(taskId, { status });
+            B33Utils.showToast(action === 'approve' ? 'Exploit approved — Pi 4 will run it shortly' : 'Exploit rejected', action === 'approve' ? 'success' : 'info');
+            await this.loadReview();
+        } catch (err) {
+            B33Utils.showToast('Failed: ' + err.message, 'error');
+        }
+    },
+
     async _handleExploit(scan) {
         const vulns = B33Utils.parseJsonField(scan.vulnerabilities_found);
         if (vulns.length === 0) return;
@@ -173,17 +245,21 @@ const PrivateScansPage = {
         const confirmed = await B33Utils.confirm('Exploit & Deploy',
             `<p>Target: <strong class="mono">${B33Utils.escapeHtml(scan.target_ip)}</strong></p>
              <p>Vulnerability: <strong>${B33Utils.escapeHtml(vuln.cve || 'Unknown')}</strong></p>
-             <p>This will create an exploitation task for the Pico to execute.</p>`);
+             <p>Pi 4 will call Gemini AI to generate a PoC exploit. You will review the code before it runs.</p>`);
         if (!confirmed) return;
         try {
+            const services = B33Utils.parseJsonField(scan.detected_services);
+            const ports = B33Utils.parseJsonField(scan.open_ports);
+            const service = services.length > 0 ? (typeof services[0] === 'string' ? services[0] : JSON.stringify(services[0])) : 'unknown';
+            const port = ports.length > 0 ? ports[0] : 'unknown';
             await B33Api.createTask({
                 task_type: 'exploit',
                 target_ip: scan.target_ip,
                 vulnerability_id: vuln.cve || null,
-                payload: JSON.stringify({ deploy_backdoor: true }),
+                payload: JSON.stringify({ service, port }),
                 assigned_to: 'pico'
             });
-            B33Utils.showToast('Exploitation task queued', 'success');
+            B33Utils.showToast('Exploit task queued — Pi 4 will generate code via Gemini AI', 'success');
         } catch (err) {
             B33Utils.showToast('Failed: ' + err.message, 'error');
         }

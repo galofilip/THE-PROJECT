@@ -49,6 +49,41 @@ class ApiClient:
             print(f"[api] poll error: {e}")
         return []
 
+    def update_task(self, task_id, status, result=None, error_message=None):
+        """PATCH /api/tasks/{id} — update task status and result."""
+        body = {"status": status}
+        if result is not None:
+            body["result"] = result
+        if error_message is not None:
+            body["error_message"] = error_message
+        try:
+            r = requests.patch(
+                f"{self.server_url}/api/tasks/{task_id}",
+                json=body,
+                headers=self._headers,
+                timeout=_TIMEOUT,
+            )
+            return r.json().get("success", False)
+        except Exception as e:
+            print(f"[api] update_task error: {e}")
+            return False
+
+    def get_approved_exploits(self):
+        """GET /api/tasks?status=approved — fetch approved exploit tasks."""
+        try:
+            r = requests.get(
+                f"{self.server_url}/api/tasks?status=approved",
+                headers=self._headers,
+                timeout=_TIMEOUT,
+            )
+            data = r.json()
+            if data.get("success"):
+                tasks = data.get("data", [])
+                return [t for t in tasks if t.get("task_type") == "exploit"]
+        except Exception as e:
+            print(f"[api] get_approved_exploits error: {e}")
+        return []
+
     def push_scan(self, scan_dict):
         """POST /api/scans/private — push a single host's scan result."""
         try:

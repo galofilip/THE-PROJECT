@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS task_queue (
     target_ip TEXT,
     vulnerability_id TEXT,                        -- CVE ID if exploitation task
     payload TEXT,                                 -- JSON: additional task parameters
-    status TEXT NOT NULL CHECK(status IN ('pending','assigned','in_progress','completed','failed')) DEFAULT 'pending',
+    status TEXT NOT NULL CHECK(status IN ('pending','assigned','in_progress','completed','failed','pending_review','approved','rejected')) DEFAULT 'pending',
     assigned_to TEXT,                             -- 'pico' or 'server'
     result TEXT,                                  -- JSON: execution result
     error_message TEXT,                           -- Error details if failed

@@ -124,7 +124,7 @@ async def main():
 
     # 6. Start background poller
     asyncio.create_task(
-        poller.run(api, task_runner, display, cfg["poll_interval"])
+        poller.run(api, task_runner, display, cfg["poll_interval"], cfg)
     )
 
     # 7. Menu loop
