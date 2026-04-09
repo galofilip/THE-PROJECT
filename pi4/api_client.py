@@ -10,7 +10,7 @@ class ApiClient:
     def __init__(self, server_url, api_key):
         self.server_url = server_url.rstrip("/")
         self._headers = {
-            "Authorization": f"Bearer {api_key}",
+            "X-API-Key": api_key,
             "Content-Type": "application/json",
         }
 
