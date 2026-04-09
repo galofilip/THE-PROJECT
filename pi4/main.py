@@ -50,8 +50,9 @@ async def _menu_loop(cfg, api, display_mod):
 async def _do_scan(cfg, api, display_mod):
     display_mod.show_status("Scanning LAN...", "Finding hosts")
     found = await scanner.run_lan_scan(wifi_manager, api, display=display_mod)
+    print(f"[scan] Scan complete — found {found} hosts")
     display_mod.show_status("Scan complete", f"Found: {found} hosts")
-    await asyncio.sleep(2)
+    await buttons.wait_enter()
 
 
 async def _do_deploy_hid(cfg, display_mod):

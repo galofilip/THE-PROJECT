@@ -32,8 +32,5 @@ async def read_event():
 
 
 async def wait_enter():
-    """Block until the ENTER button is pressed."""
-    while True:
-        event = await read_event()
-        if event == "enter":
-            return
+    """Block until any button is pressed."""
+    await read_event()
