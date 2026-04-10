@@ -110,17 +110,15 @@ async def _generate_exploit(task, api_client, cfg):
     service = payload.get("service", "unknown service")
     port = payload.get("port", "unknown port")
 
-    api_key = cfg.get("gemini_api_key", "")
+    api_key = cfg.get("groq_api_key", "")
     if not api_key:
-        api_client.update_task(task_id, "failed", error_message="gemini_api_key not set in b33_settings.json")
+        api_client.update_task(task_id, "failed", error_message="groq_api_key not set in b33_settings.json")
         return
 
-    print(f"[task_runner] Calling Gemini for {cve_id} on {target_ip}:{port}")
+    print(f"[task_runner] Calling Groq for {cve_id} on {target_ip}:{port}")
 
     try:
-        from google import genai
-        from google.genai import types
-        client = genai.Client(api_key=api_key)
+        import requests as _requests
 
         prompt = f"""You are a cybersecurity researcher generating educational proof-of-concept exploit code for authorized penetration testing.
 
@@ -137,19 +135,29 @@ Generate a complete, runnable Python script that demonstrates this vulnerability
 
 Return ONLY the Python code, no explanation outside the code."""
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
+        r = _requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+            },
+            timeout=30,
         )
-        code = response.text
+        r.raise_for_status()
+        code = r.json()["choices"][0]["message"]["content"]
 
         # Strip markdown code fences if present
         code = re.sub(r'^```(?:python)?\n?', '', code.strip())
         code = re.sub(r'\n?```$', '', code.strip())
 
-        print(f"[task_runner] Gemini returned {len(code)} chars of code — sending for review")
+        print(f"[task_runner] Groq returned {len(code)} chars of code — sending for review")
         api_client.update_task(task_id, "pending_review", result=code)
 
     except Exception as e:
-        print(f"[task_runner] Gemini error: {e}")
-        api_client.update_task(task_id, "failed", error_message=f"Gemini API error: {e}")
+        print(f"[task_runner] Groq error: {e}")
+        api_client.update_task(task_id, "failed", error_message=f"Groq API error: {e}")
