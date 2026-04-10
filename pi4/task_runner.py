@@ -109,6 +109,8 @@ async def _generate_exploit(task, api_client, cfg):
 
     service = payload.get("service", "unknown service")
     port = payload.get("port", "unknown port")
+    description = payload.get("description", "")
+    severity = payload.get("severity", "")
 
     api_key = cfg.get("groq_api_key", "")
     if not api_key:
@@ -123,15 +125,19 @@ async def _generate_exploit(task, api_client, cfg):
         prompt = f"""You are a cybersecurity researcher generating educational proof-of-concept exploit code for authorized penetration testing.
 
 CVE: {cve_id}
+Severity: {severity or 'unknown'}
+Description: {description or 'No description available'}
 Target IP: {target_ip}
 Service: {service} on port {port}
 
-Generate a complete, runnable Python script that demonstrates this vulnerability as a proof-of-concept. The script should:
-1. Include a comment explaining what the vulnerability is
-2. Attempt to exploit it against the target IP
+Generate a complete, runnable Python script that specifically demonstrates this CVE as a proof-of-concept. The script should:
+1. Include a comment explaining exactly what this CVE is and how the exploit works
+2. Implement the specific attack technique described in the CVE (not just a generic connection test)
 3. Print clear output showing if it succeeded or failed
 4. Use only Python standard library + requests (no exotic dependencies)
 5. Include a timeout so it doesn't hang
+
+If this CVE cannot be practically exploited with Python (e.g. it's a config issue or too old), instead write a script that checks if the service is vulnerable by detecting the conditions described in the CVE.
 
 Return ONLY the Python code, no explanation outside the code."""
 

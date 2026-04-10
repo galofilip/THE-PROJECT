@@ -256,7 +256,7 @@ const PrivateScansPage = {
                 task_type: 'exploit',
                 target_ip: scan.target_ip,
                 vulnerability_id: vuln.id || null,
-                payload: JSON.stringify({ service, port }),
+                payload: JSON.stringify({ service, port, description: vuln.description || '', severity: vuln.severity || '' }),
                 assigned_to: 'pico'
             });
             B33Utils.showToast('Exploit task queued — Pi 4 will generate code via Gemini AI', 'success');
