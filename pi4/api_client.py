@@ -63,7 +63,10 @@ class ApiClient:
                 headers=self._headers,
                 timeout=_TIMEOUT,
             )
-            return r.json().get("success", False)
+            if not r.json().get("success", False):
+                print(f"[api] update_task FAILED ({r.status_code}): {r.text[:200]}")
+                return False
+            return True
         except Exception as e:
             print(f"[api] update_task error: {e}")
             return False
