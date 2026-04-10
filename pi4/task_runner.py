@@ -118,9 +118,9 @@ async def _generate_exploit(task, api_client, cfg):
     print(f"[task_runner] Calling Gemini for {cve_id} on {target_ip}:{port}")
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-pro")
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=api_key)
 
         prompt = f"""You are a cybersecurity researcher generating educational proof-of-concept exploit code for authorized penetration testing.
 
@@ -137,7 +137,10 @@ Generate a complete, runnable Python script that demonstrates this vulnerability
 
 Return ONLY the Python code, no explanation outside the code."""
 
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+        )
         code = response.text
 
         # Strip markdown code fences if present
