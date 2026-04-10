@@ -244,18 +244,18 @@ const PrivateScansPage = {
         const vuln = vulns[0];
         const confirmed = await B33Utils.confirm('Exploit & Deploy',
             `<p>Target: <strong class="mono">${B33Utils.escapeHtml(scan.target_ip)}</strong></p>
-             <p>Vulnerability: <strong>${B33Utils.escapeHtml(vuln.cve || 'Unknown')}</strong></p>
-             <p>Pi 4 will call Gemini AI to generate a PoC exploit. You will review the code before it runs.</p>`);
+             <p>Vulnerability: <strong>${B33Utils.escapeHtml(vuln.id || 'Unknown')}</strong></p>
+             <p>Pi 4 will call Groq AI to generate a PoC exploit. You will review the code before it runs.</p>`);
         if (!confirmed) return;
         try {
             const services = B33Utils.parseJsonField(scan.detected_services);
-            const ports = B33Utils.parseJsonField(scan.open_ports);
-            const service = services.length > 0 ? (typeof services[0] === 'string' ? services[0] : JSON.stringify(services[0])) : 'unknown';
-            const port = ports.length > 0 ? ports[0] : 'unknown';
+            const firstService = services.length > 0 ? services[0] : null;
+            const service = firstService ? (firstService.service || 'unknown') : 'unknown';
+            const port = firstService ? (firstService.port || 'unknown') : 'unknown';
             await B33Api.createTask({
                 task_type: 'exploit',
                 target_ip: scan.target_ip,
-                vulnerability_id: vuln.cve || null,
+                vulnerability_id: vuln.id || null,
                 payload: JSON.stringify({ service, port }),
                 assigned_to: 'pico'
             });
