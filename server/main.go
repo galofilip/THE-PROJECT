@@ -37,11 +37,11 @@ func main() {
 	// Auth - no auth needed
 	mux.HandleFunc("/api/auth/login", authHandler.HandleLogin)
 
-	// Scans - JWT required (web interface)
-	mux.Handle("/api/scans/private", JWTAuthMiddleware(cfg.JWTSecret, http.HandlerFunc(scanHandler.HandlePrivateScans)))
-	mux.Handle("/api/scans/private/", JWTAuthMiddleware(cfg.JWTSecret, http.HandlerFunc(scanHandler.HandlePrivateScans)))
-	mux.Handle("/api/scans/public", JWTAuthMiddleware(cfg.JWTSecret, http.HandlerFunc(scanHandler.HandlePublicScans)))
-	mux.Handle("/api/scans/public/", JWTAuthMiddleware(cfg.JWTSecret, http.HandlerFunc(scanHandler.HandlePublicScans)))
+	// Scans - JWT (web interface) or API key (Pi 4 push_scan)
+	mux.Handle("/api/scans/private", EitherAuthMiddleware(cfg.JWTSecret, cfg.APIKey, http.HandlerFunc(scanHandler.HandlePrivateScans)))
+	mux.Handle("/api/scans/private/", EitherAuthMiddleware(cfg.JWTSecret, cfg.APIKey, http.HandlerFunc(scanHandler.HandlePrivateScans)))
+	mux.Handle("/api/scans/public", EitherAuthMiddleware(cfg.JWTSecret, cfg.APIKey, http.HandlerFunc(scanHandler.HandlePublicScans)))
+	mux.Handle("/api/scans/public/", EitherAuthMiddleware(cfg.JWTSecret, cfg.APIKey, http.HandlerFunc(scanHandler.HandlePublicScans)))
 
 	// Tasks - JWT required (web creates tasks) or API key (pico updates tasks)
 	mux.Handle("/api/tasks", EitherAuthMiddleware(cfg.JWTSecret, cfg.APIKey, http.HandlerFunc(taskHandler.HandleTasks)))
