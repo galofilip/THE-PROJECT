@@ -57,17 +57,21 @@ def show_typewriter(lines, char_count):
 
 
 def show_menu(title, items, selected_idx, status_line=""):
-    """Menu with optional status bar at bottom."""
+    """Menu with scrolling and optional status bar at bottom."""
     if not _device:
         return
     img = _blank()
     draw = ImageDraw.Draw(img)
     draw.text((0, 0), title, font=_FONT, fill=255)
     draw.line((0, 11, _WIDTH, 11), fill=255)
-    max_items = 3 if status_line else 4
-    for i, item in enumerate(items[:max_items]):
+    max_visible = 3 if status_line else 4
+    # Scroll window: keep selected_idx visible
+    scroll = max(0, selected_idx - max_visible + 1)
+    visible = items[scroll:scroll + max_visible]
+    for i, item in enumerate(visible):
+        actual_idx = scroll + i
         y = 14 + i * 12
-        prefix = "> " if i == selected_idx else "  "
+        prefix = "> " if actual_idx == selected_idx else "  "
         draw.text((0, y), f"{prefix}{item}", font=_FONT, fill=255)
     if status_line:
         draw.line((0, 54, _WIDTH, 54), fill=255)
