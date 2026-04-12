@@ -72,9 +72,10 @@ async def _any_button(timeout):
 
 
 async def _matrix_rain(duration=20):
+    """Returns True if exited by button press."""
     col_w = 6
-    cols = display._WIDTH // col_w   # 21
-    rows = display._HEIGHT // 8      # 8
+    cols = display._WIDTH // col_w
+    rows = display._HEIGHT // 8
     drops = [random.randint(-rows, 0) for _ in range(cols)]
     chars = [random.choice(display.MATRIX_CHARS) for _ in range(cols)]
     loop = asyncio.get_running_loop()
@@ -82,7 +83,7 @@ async def _matrix_rain(duration=20):
 
     while loop.time() < end:
         if await _any_button(0.08):
-            return
+            return True
         display.show_matrix_frame(drops, chars)
         for i in range(cols):
             drops[i] += 1
@@ -91,9 +92,11 @@ async def _matrix_rain(duration=20):
                 chars[i] = random.choice(display.MATRIX_CHARS)
             if random.random() < 0.12:
                 chars[i] = random.choice(display.MATRIX_CHARS)
+    return False
 
 
 async def _bounce_logo(duration=15):
+    """Returns True if exited by button press."""
     x, y = 55.0, 28.0
     dx, dy = 1.5, 1.1
     text = "B33"
@@ -104,7 +107,7 @@ async def _bounce_logo(duration=15):
 
     while loop.time() < end:
         if await _any_button(0.05):
-            return
+            return True
         display.show_bounce_frame(x, y, text)
         x += dx
         y += dy
@@ -112,10 +115,11 @@ async def _bounce_logo(duration=15):
             dx = -dx
         if y <= 2 or y >= display._HEIGHT - text_h - 2:
             dy = -dy
+    return False
 
 
 async def _hacker_text(duration=12):
-    """Scrolling hacker-style status lines."""
+    """Returns True if exited by button press."""
     lines_pool = [
         "SCANNING NETWORK",
         "CRACKING HASHES",
@@ -134,25 +138,24 @@ async def _hacker_text(duration=12):
 
     while loop.time() < end:
         if await _any_button(0.05):
-            return
+            return True
         if len(shown) < 5:
             shown.append(random.choice(lines_pool))
         else:
             shown = shown[1:] + [random.choice(lines_pool)]
         display.show_glitch_frame(shown, 0.03)
         await asyncio.sleep(0.4)
+    return False
 
 
 async def _do_screensaver():
-    """Screensaver: cycle through matrix rain, bounce, hacker text."""
+    """Screensaver: cycle through animations. Any button press exits."""
     while True:
-        await _matrix_rain(20)
-        await _bounce_logo(15)
-        await _hacker_text(12)
-        # After one full cycle, check for button (any of the above already
-        # returns on button press, so reaching here means full cycle done)
-        # Small pause before looping
-        if await _any_button(0.1):
+        if await _matrix_rain(20):
+            return
+        if await _bounce_logo(15):
+            return
+        if await _hacker_text(12):
             return
 
 
