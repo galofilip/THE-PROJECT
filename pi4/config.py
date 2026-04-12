@@ -8,7 +8,7 @@ _defaults = {
     "api_key": "",
     "poll_interval": 30,
     "scan_timeout": 0.5,
-    "gemini_api_key": "",
+    "groq_api_key": "",
 }
 
 
