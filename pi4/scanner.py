@@ -248,7 +248,7 @@ def scan_host(ip, timeout=120):
 def _discover_hosts(subnet):
     """ARP/ICMP ping sweep. Returns list of live IPs."""
     print(f"[scanner] Discovering hosts on {subnet}/24")
-    xml_out = _run_nmap(["-sn", "-T4", f"{subnet}/24"], timeout=60)
+    xml_out = _run_nmap(["-sn", "-T4", f"{subnet}.0/24"], timeout=60)
     if not xml_out:
         return []
 
