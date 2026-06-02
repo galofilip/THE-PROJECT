@@ -252,14 +252,22 @@ const PrivateScansPage = {
             const firstService = services.length > 0 ? services[0] : null;
             const service = firstService ? (firstService.service || 'unknown') : 'unknown';
             const port = firstService ? (firstService.port || 'unknown') : 'unknown';
+            const product = firstService ? (firstService.product || '') : '';
+            const version = firstService ? (firstService.version || '') : '';
+            const cpe = firstService ? (firstService.cpe || '') : '';
+            const scripts = firstService ? (firstService.scripts || {}) : {};
             await B33Api.createTask({
                 task_type: 'exploit',
                 target_ip: scan.target_ip,
                 vulnerability_id: vuln.id || null,
-                payload: JSON.stringify({ service, port, description: vuln.description || '', severity: vuln.severity || '' }),
+                payload: JSON.stringify({
+                    service, port, product, version, cpe, scripts,
+                    description: vuln.description || '',
+                    severity: vuln.severity || '',
+                }),
                 assigned_to: 'pico'
             });
-            B33Utils.showToast('Exploit task queued — Pi 4 will generate code via Gemini AI', 'success');
+            B33Utils.showToast('Exploit task queued — Pi 4 will generate code via Groq AI', 'success');
         } catch (err) {
             B33Utils.showToast('Failed: ' + err.message, 'error');
         }
