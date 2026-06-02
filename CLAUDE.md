@@ -10,7 +10,7 @@ B33 is a portable penetration testing device for **educational purposes only**. 
 - ✅ Phase 4: Cloud deployment (Render, Docker)
 - ✅ Phase 5: Pi 4 firmware (Python) + Pico HID firmware (CircuitPython)
 - ✅ Phase 5.5: Pi 4 hardware setup — OS flashed to USB stick, SSH working, OLED wired and confirmed working (SH1106 driver)
-- 🔄 Phase 6a: AI exploit generation (Gemini 2.5 Pro) + human review UI — implemented, debugging push_scan failure
+- ✅ Phase 6a: AI exploit generation (Gemini 2.5 Pro) + human review UI — fully working. Fixed: scan endpoints needed EitherAuthMiddleware (was JWT-only)
 - ⏳ Phase 6b: Backdoor agent binary, persistence, C2 web UI
 - ⏳ Phase 7: Public IP scanner (server-side)
 
@@ -172,3 +172,29 @@ python main.py
 - All JSON responses: `{"success": bool, "data": ..., "message": "..."}`
 - SPA: single `index.html`, sections shown/hidden via JS
 - Commit after every completed phase
+
+## Scanner — Known Limitations & Future Improvements
+
+The nmap-based scanner (`pi4/scanner.py`) is a first working version. If scanning results are poor quality or CVEs don't match the target, suspect these areas first:
+
+### Nmap command
+- Current command may not use the most efficient flags for speed vs. detail tradeoff
+- `-T4` timing may be too aggressive on slow/congested networks — try `-T3`
+- NSE scripts add significant time per host — consider running them only on high-value ports
+- `sudo` required for `-O` (OS detection) and `-sS` (SYN scan) — if permissions fail, falls back to `-sT`
+
+### CVE matching
+- NVD `cpeName` query requires exact CPE format — nmap sometimes outputs CPE 2.2 (`cpe:/a:...`) but NVD expects CPE 2.3 (`cpe:2.3:a:...`). Conversion may miss edge cases.
+- `keywordSearch` fallback (no CPE) returns recent CVEs for the product name, not version-specific ones — results may not apply to the actual version running
+- NVD API rate limits: 5 req/30s unauthenticated — scanning many hosts with many services can hit this
+
+### Groq prompt
+- Prompt may be too long for context window on certain models — if Groq returns truncated or generic code, shorten the CONDITIONS section
+- "Conditions found" section is only as good as what NSE scripts detected — missing conditions = less targeted exploit
+- `impacket` is listed as allowed but may not be installed on the Pi — add to `requirements.txt` before relying on it
+
+### Future improvements to consider
+- Version fingerprinting beyond nmap (e.g. HTTP `Server:` header parsing, SSH banner parsing)
+- NVD API key (free) removes rate limit — add `nvd_api_key` to `b33_settings.json`
+- Filter CVEs by `cvssV3Severity=HIGH,CRITICAL` to reduce noise
+- Cache NVD results locally to avoid repeat queries for the same service/version

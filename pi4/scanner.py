@@ -1,156 +1,303 @@
 import asyncio
 import json
-import socket
+import subprocess
+import time
+import xml.etree.ElementTree as ET
+
 import requests
 
-_PORTS = [21, 22, 23, 25, 53, 80, 135, 139, 443, 445, 3306, 3389, 5900, 8080, 8443]
-
-_SERVICE_MAP = {
-    21: "FTP",
-    22: "SSH",
-    23: "Telnet",
-    25: "SMTP",
-    53: "DNS",
-    80: "HTTP",
-    135: "RPC",
-    139: "NetBIOS",
-    443: "HTTPS",
-    445: "SMB",
-    3306: "MySQL",
-    3389: "RDP",
-    5900: "VNC",
-    8080: "HTTP-Alt",
-    8443: "HTTPS-Alt",
-}
-
-# Services worth querying NVD for (skip low-signal ones)
-_SCAN_CVE_FOR = {"SSH", "FTP", "Telnet", "SMB", "MySQL", "RDP", "VNC", "HTTP", "HTTPS"}
-
+_PORTS = "21,22,23,25,53,80,135,139,443,445,3306,3389,5900,8080,8443"
+_NSE_SCRIPTS = (
+    "banner,ftp-anon,ssh-auth-methods,ssl-enum-ciphers,"
+    "smb-security-mode,smb2-security-mode,http-headers,"
+    "mysql-empty-password,vnc-info,rdp-enum-encryption"
+)
 _NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 _NVD_TIMEOUT = 8
+_NVD_DELAY = 6  # stay under NVD's 5 req/30s unauthenticated limit
+_MAX_CVE_QUERIES = 5  # per host
 
 
-def _is_host_up(ip, timeout):
-    """Try TCP connect to port 80, 443, then 22. Refused = up; timeout = down."""
-    for port in (80, 443, 22):
-        try:
-            with socket.create_connection((ip, port), timeout=timeout):
-                return True
-        except ConnectionRefusedError:
-            return True  # port closed but host responded
-        except OSError:
-            continue
-    return False
-
-
-def _scan_ports(ip, timeout):
-    open_ports = []
-    for port in _PORTS:
-        try:
-            with socket.create_connection((ip, port), timeout=timeout):
-                open_ports.append(port)
-        except ConnectionRefusedError:
-            pass
-        except OSError:
-            pass
-    return open_ports
-
-
-def _lookup_cves(service_name):
+def _run_nmap(args, timeout=120):
     try:
-        r = requests.get(
-            _NVD_URL,
-            params={"keywordSearch": service_name, "resultsPerPage": 3},
-            timeout=_NVD_TIMEOUT,
+        result = subprocess.run(
+            ["sudo", "nmap"] + args + ["-oX", "-"],
+            capture_output=True, text=True, timeout=timeout
         )
-        items = r.json().get("vulnerabilities", [])
+        return result.stdout
+    except subprocess.TimeoutExpired:
+        print("[scanner] nmap timed out")
+        return ""
+    except FileNotFoundError:
+        print("[scanner] nmap not found — install with: sudo apt install nmap")
+        return ""
+    except Exception as e:
+        print(f"[scanner] nmap error: {e}")
+        return ""
+
+
+def _parse_host(host_el):
+    data = {"target_ip": "", "mac_address": "", "hostname": "", "os": {}, "ports": []}
+
+    for addr in host_el.findall("address"):
+        if addr.get("addrtype") == "ipv4":
+            data["target_ip"] = addr.get("addr", "")
+        elif addr.get("addrtype") == "mac":
+            data["mac_address"] = addr.get("addr", "")
+
+    for hn in host_el.findall("hostnames/hostname"):
+        data["hostname"] = hn.get("name", "")
+        break
+
+    osmatch = host_el.find("os/osmatch")
+    if osmatch is not None:
+        osclass = osmatch.find("osclass")
+        data["os"] = {
+            "name": osmatch.get("name", ""),
+            "accuracy": int(osmatch.get("accuracy", 0)),
+            "family": osclass.get("osfamily", "") if osclass is not None else "",
+        }
+
+    for port_el in host_el.findall("ports/port"):
+        state = port_el.find("state")
+        if state is None or state.get("state") != "open":
+            continue
+
+        port_num = int(port_el.get("portid", 0))
+        svc = port_el.find("service")
+
+        port_data = {
+            "port": port_num,
+            "service": svc.get("name", "").upper() if svc is not None else "",
+            "product": svc.get("product", "") if svc is not None else "",
+            "version": svc.get("version", "") if svc is not None else "",
+            "cpe": "",
+            "scripts": {},
+        }
+
+        if svc is not None:
+            cpe_el = svc.find("cpe")
+            if cpe_el is not None:
+                port_data["cpe"] = cpe_el.text or ""
+
+        for script in port_el.findall("script"):
+            sid = script.get("id", "")
+            output = script.get("output", "").strip()
+            if sid and output:
+                port_data["scripts"][sid] = output
+
+        data["ports"].append(port_data)
+
+    return data
+
+
+def _cpe22_to_23(cpe22):
+    """Convert nmap CPE 2.2 string to CPE 2.3 for NVD API."""
+    if not cpe22.startswith("cpe:/"):
+        return None
+    parts = cpe22[5:].split(":")
+    while len(parts) < 4:
+        parts.append("*")
+    return "cpe:2.3:" + ":".join(parts[:4]) + ":*:*:*:*:*:*:*"
+
+
+def _lookup_cves(cpe=None, keyword=None):
+    try:
+        if cpe:
+            cpe23 = _cpe22_to_23(cpe)
+            if not cpe23:
+                return []
+            params = {"cpeName": cpe23, "resultsPerPage": 5}
+        else:
+            params = {"keywordSearch": keyword, "resultsPerPage": 3}
+
+        r = requests.get(_NVD_URL, params=params, timeout=_NVD_TIMEOUT)
         cves = []
-        for item in items:
+        for item in r.json().get("vulnerabilities", []):
             cve = item.get("cve", {})
             cve_id = cve.get("id", "")
+            if not cve_id:
+                continue
+
             desc = ""
             for d in cve.get("descriptions", []):
                 if d.get("lang") == "en":
-                    desc = d.get("value", "")[:100]
+                    desc = d.get("value", "")
                     break
+
             severity = ""
             metrics = cve.get("metrics", {})
-            v31 = metrics.get("cvssMetricV31", [])
-            if v31:
-                severity = v31[0].get("cvssData", {}).get("baseSeverity", "")
-            if cve_id:
-                cves.append({"id": cve_id, "severity": severity, "description": desc})
+            for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+                entries = metrics.get(key, [])
+                if entries:
+                    severity = entries[0].get("cvssData", {}).get("baseSeverity", "")
+                    break
+
+            cves.append({"id": cve_id, "severity": severity, "description": desc})
         return cves
     except Exception as e:
-        print(f"[scanner] CVE lookup failed for {service_name}: {e}")
+        print(f"[scanner] CVE lookup failed: {e}")
         return []
 
 
-def _calc_risk(open_ports, services, vulnerabilities):
+def _calc_risk(ports, vulnerabilities):
     severities = {v.get("severity", "") for v in vulnerabilities}
     if "CRITICAL" in severities:
         return "critical"
-    service_names = set(services.values())
-    if "HIGH" in severities or service_names & {"Telnet", "RDP", "VNC"}:
+
+    script_findings = {}
+    for p in ports:
+        script_findings.update(p.get("scripts", {}))
+
+    ftp_anon = script_findings.get("ftp-anon", "")
+    if ftp_anon and "allowed" in ftp_anon.lower():
         return "high"
-    if "MEDIUM" in severities or service_names & {"SMB", "MySQL"}:
+    if "mysql-empty-password" in script_findings:
+        return "high"
+    smb_mode = script_findings.get("smb-security-mode", "")
+    if "disabled" in smb_mode:
+        return "high"
+
+    service_names = {p["service"] for p in ports}
+    if "HIGH" in severities or service_names & {"TELNET", "RDP", "VNC"}:
+        return "high"
+    if "MEDIUM" in severities or service_names & {"NETBIOS", "SMB", "MYSQL"}:
         return "medium"
-    if open_ports:
+    if ports:
         return "low"
     return "none"
 
 
-def scan_host(ip, timeout=0.5):
-    """Scan a single host. Returns a dict ready to POST to /api/scans/private."""
-    open_ports = _scan_ports(ip, timeout)
-    services = {p: _SERVICE_MAP[p] for p in open_ports if p in _SERVICE_MAP}
+def scan_host(ip, timeout=120):
+    """Full nmap scan of a single host. Returns dict ready for POST /api/scans/private.
+    Also includes '_os' key (stripped before DB push) for use in Groq prompt."""
+    print(f"[scanner] Scanning {ip}")
 
+    xml_out = _run_nmap([
+        "-sS", "-sV", "-O", "-T4", "--open",
+        "-p", _PORTS,
+        "--script", _NSE_SCRIPTS,
+        ip,
+    ], timeout=timeout)
+
+    if not xml_out:
+        print(f"[scanner] Retrying {ip} without sudo features")
+        xml_out = _run_nmap(["-sT", "-sV", "-T4", "--open", "-p", _PORTS, ip], timeout=timeout)
+
+    if not xml_out:
+        return None
+
+    try:
+        root = ET.fromstring(xml_out)
+    except ET.ParseError as e:
+        print(f"[scanner] XML parse error for {ip}: {e}")
+        return None
+
+    host_el = root.find("host")
+    if host_el is None:
+        return None
+
+    host = _parse_host(host_el)
+    if not host["target_ip"]:
+        host["target_ip"] = ip
+
+    # CVE lookup — deduplicated, max _MAX_CVE_QUERIES per host
     vulnerabilities = []
     queried = set()
-    for svc in services.values():
-        if svc in _SCAN_CVE_FOR and svc not in queried:
-            queried.add(svc)
-            vulnerabilities.extend(_lookup_cves(svc))
+    query_count = 0
 
-    risk = _calc_risk(open_ports, services, vulnerabilities)
-    service_list = [{"port": p, "service": s} for p, s in services.items()]
+    for port in host["ports"]:
+        if query_count >= _MAX_CVE_QUERIES:
+            break
+
+        cpe = port.get("cpe", "")
+        product = port.get("product", "")
+        version = port.get("version", "")
+        key = cpe or f"{product} {version}".strip()
+
+        if not key or key in queried:
+            continue
+        queried.add(key)
+
+        if cpe:
+            cves = _lookup_cves(cpe=cpe)
+        elif product:
+            keyword = f"{product} {version}".strip() if version else product
+            cves = _lookup_cves(keyword=keyword)
+        else:
+            continue
+
+        vulnerabilities.extend(cves)
+        query_count += 1
+        if query_count < _MAX_CVE_QUERIES:
+            time.sleep(_NVD_DELAY)
 
     return {
-        "target_ip": ip,
-        "open_ports": json.dumps(open_ports),
-        "detected_services": json.dumps(service_list),
+        "target_ip": host["target_ip"],
+        "mac_address": host["mac_address"],
+        "hostname": host["hostname"],
+        "open_ports": json.dumps([p["port"] for p in host["ports"]]),
+        "detected_services": json.dumps(host["ports"]),
         "vulnerabilities_found": json.dumps(vulnerabilities),
-        "risk_level": risk,
-        "scan_source": "pico",
+        "risk_level": _calc_risk(host["ports"], vulnerabilities),
+        "scan_source": "pi4",
+        "_os": host["os"],  # stripped before DB push — used only for Groq prompt
     }
 
 
+def _discover_hosts(subnet):
+    """ARP/ICMP ping sweep. Returns list of live IPs."""
+    print(f"[scanner] Discovering hosts on {subnet}/24")
+    xml_out = _run_nmap(["-sn", "-T4", f"{subnet}/24"], timeout=60)
+    if not xml_out:
+        return []
+
+    try:
+        root = ET.fromstring(xml_out)
+    except ET.ParseError:
+        return []
+
+    hosts = []
+    for host_el in root.findall("host"):
+        state = host_el.find("status")
+        if state is None or state.get("state") != "up":
+            continue
+        for addr in host_el.findall("address"):
+            if addr.get("addrtype") == "ipv4":
+                ip = addr.get("addr", "")
+                if ip:
+                    hosts.append(ip)
+                break
+
+    return hosts
+
+
 async def run_lan_scan(wifi_manager, api_client, display=None):
-    """Discover and scan all hosts on the current subnet, pushing each result immediately."""
     subnet = wifi_manager.get_subnet_base()
     ssid = wifi_manager.get_ssid()
     bssid = wifi_manager.get_bssid()
-    timeout = 0.5
 
     if not subnet:
         print("[scanner] Could not determine subnet.")
         return 0
 
-    found = 0
-    total = 254
-    for i in range(1, 255):
-        ip = f"{subnet}.{i}"
-        if display:
-            display.show_progress(f"Scanning {subnet}.x", i, total)
+    hosts = _discover_hosts(subnet)
+    print(f"[scanner] Found {len(hosts)} live hosts")
 
-        if _is_host_up(ip, timeout):
-            result = scan_host(ip, timeout)
+    found = 0
+    for i, ip in enumerate(hosts):
+        if display:
+            display.show_progress(f"Scanning {ip}", i + 1, len(hosts))
+
+        result = scan_host(ip)
+        if result:
             result["network_ssid"] = ssid
             result["network_bssid"] = bssid
+            result.pop("_os", None)  # not a DB field
             ok = api_client.push_scan(result)
             print(f"[scanner] push_scan {ip}: {'ok' if ok else 'FAILED'}")
             found += 1
 
-        await asyncio.sleep(0)  # yield to event loop
+        await asyncio.sleep(0)
 
     return found

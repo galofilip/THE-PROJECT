@@ -5,3 +5,4 @@ gpiozero
 pyserial
 RPi.GPIO
 smbus2
+impacket

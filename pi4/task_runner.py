@@ -111,35 +111,76 @@ async def _generate_exploit(task, api_client, cfg):
     port = payload.get("port", "unknown port")
     description = payload.get("description", "")
     severity = payload.get("severity", "")
+    product = payload.get("product", "")
+    version = payload.get("version", "")
+    cpe = payload.get("cpe", "")
+    os_name = payload.get("os_name", "")
+    os_family = payload.get("os_family", "")
+    scripts = payload.get("scripts", {})
 
     api_key = cfg.get("groq_api_key", "")
     if not api_key:
         api_client.update_task(task_id, "failed", error_message="groq_api_key not set in b33_settings.json")
         return
 
+    # Build service line: prefer product+version over generic service name
+    if product and version:
+        service_line = f"{product} {version} ({service}) on port {port}"
+    elif product:
+        service_line = f"{product} ({service}) on port {port}"
+    else:
+        service_line = f"{service} on port {port}"
+
+    # Build conditions block from NSE script findings
+    conditions = []
+    for script_id, output in scripts.items():
+        conditions.append(f"  - {script_id}: {output[:120]}")
+    conditions_block = "\n".join(conditions) if conditions else "  - No additional conditions detected"
+
+    os_line = ""
+    if os_name:
+        os_line = f"  OS:       {os_name}" + (f" ({os_family})" if os_family else "")
+    else:
+        os_line = "  OS:       Unknown"
+
+    cpe_line = f"  CPE:      {cpe}" if cpe else ""
+
     print(f"[task_runner] Calling Groq for {cve_id} on {target_ip}:{port}")
 
     try:
         import requests as _requests
 
-        prompt = f"""You are a cybersecurity researcher generating educational proof-of-concept exploit code for authorized penetration testing.
+        prompt = f"""You are a penetration tester writing a proof-of-concept exploit for an authorized engagement.
 
-CVE: {cve_id}
-Severity: {severity or 'unknown'}
-Description: {description or 'No description available'}
-Target IP: {target_ip}
-Service: {service} on port {port}
+TARGET
+  IP:       {target_ip}
+{os_line}
 
-Generate a complete, runnable Python script that specifically demonstrates this CVE as a proof-of-concept. The script should:
-1. Include a comment explaining exactly what this CVE is and how the exploit works
-2. Implement the specific attack technique described in the CVE (not just a generic connection test)
-3. Print clear output showing if it succeeded or failed
-4. Use only Python standard library + requests (no exotic dependencies)
-5. Include a timeout so it doesn't hang
+VULNERABLE SERVICE
+  {service_line}
+{("  " + cpe_line) if cpe_line else ""}
 
-If this CVE cannot be practically exploited with Python (e.g. it's a config issue or too old), instead write a script that checks if the service is vulnerable by detecting the conditions described in the CVE.
+CVE
+  ID:          {cve_id}
+  Severity:    {severity or 'unknown'}
+  Description: {description or 'No description available'}
 
-Return ONLY the Python code, no explanation outside the code."""
+CONDITIONS FOUND ON TARGET
+{conditions_block}
+
+TASK
+Write a complete, runnable Python script that exploits {cve_id} against {target_ip}.
+
+The script must:
+1. Open with a comment block: what the CVE is, why this target is vulnerable, what the exploit does step by step
+2. Implement the actual attack — not a generic port check
+3. Print clear output at each step showing progress and result
+4. Hard timeout of 30s — must not hang
+5. Use only: Python stdlib + requests + impacket (impacket is allowed for SMB/RDP/network exploits)
+
+If this CVE is not feasible to exploit directly in Python, write a detection script that proves the vulnerability exists by triggering or observing the vulnerable condition.
+
+Return ONLY the Python code. No markdown fences, no explanation outside the code."""
 
         r = _requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
