@@ -833,7 +833,20 @@ Cache frequently accessed CVEs on Go server to:
   - USB HID keyboard emulator (Windows + Linux payloads)
   - Listens for commands from Pi 4 over USB serial
 
-### Phase 6: Backdoor Agent (Planned)
+### Phase 6a.5: Scanner Rewrite ✅ COMPLETE (June 2026)
+- Replaced custom TCP scanner with nmap (`-sS -sV -O -T4` + NSE scripts)
+- Host discovery via `nmap -sn` (ARP/ICMP sweep) instead of brute-force IP iteration
+- CPE-based NVD queries for version-exact CVE matching
+- Enriched `detected_services` with product, version, CPE, NSE script findings
+- Improved Groq prompt: structured TARGET/SERVICE/CVE/CONDITIONS sections
+- Web UI now passes product, version, CPE, scripts in exploit task payload
+- Tested on live network — found 2 hosts, full pipeline working end-to-end
+
+### Phase 6a.6: CVE Matching Quality (Next)
+- NVD currently returning old/irrelevant CVEs (e.g. CVE-2007 for OpenSSH 10)
+- Need: severity filtering (HIGH/CRITICAL only), version range validation, NVD API key for rate limit removal
+
+### Phase 6b: Backdoor Agent (Planned)
 - [ ] Go backdoor binary (Windows + Linux)
 - [ ] Persistence mechanisms (scheduled tasks, cron)
 - [ ] C2 communication with Go server
