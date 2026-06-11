@@ -1,7 +1,11 @@
 import json
 import os
 
-_SETTINGS_PATH = "/boot/b33_settings.json"
+_SETTINGS_PATH = (
+    "/boot/firmware/b33_settings.json"
+    if os.path.exists("/boot/firmware/b33_settings.json")
+    else "/boot/b33_settings.json"
+)
 
 _defaults = {
     "server_url": "https://the-project-gukh.onrender.com",
@@ -9,6 +13,7 @@ _defaults = {
     "poll_interval": 30,
     "scan_timeout": 0.5,
     "groq_api_key": "",
+    "nvd_api_key": "",
 }
 
 

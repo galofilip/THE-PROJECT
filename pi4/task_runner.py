@@ -21,12 +21,12 @@ async def dispatch(task, api_client, cfg):
         if task_type == "scan_private":
             if target_ip:
                 print(f"[task_runner] Scanning single host {target_ip}")
-                result = scanner.scan_host(target_ip, timeout=cfg["scan_timeout"])
+                result = scanner.scan_host(target_ip, timeout=cfg["scan_timeout"], nvd_api_key=cfg.get("nvd_api_key", ""))
                 api_client.push_scan(result)
                 poller.add_result(task_id, "completed", result=f"Scanned {target_ip}")
             else:
                 print(f"[task_runner] Running full LAN scan")
-                found = await scanner.run_lan_scan(wifi_manager, api_client)
+                found = await scanner.run_lan_scan(wifi_manager, api_client, cfg=cfg)
                 print(f"[task_runner] LAN scan complete, found {found} hosts")
                 poller.add_result(task_id, "completed", result=f"LAN scan complete, found {found} hosts")
 

@@ -101,17 +101,94 @@ def _cpe22_to_23(cpe22):
     return "cpe:2.3:" + ":".join(parts[:4]) + ":*:*:*:*:*:*:*"
 
 
-def _lookup_cves(cpe=None, keyword=None):
+def _parse_version(ver_str):
+    """Parse version string into a comparable tuple. Strips suffixes like p2, b1, -rc1."""
+    if not ver_str:
+        return None
     try:
+        clean = ver_str.strip().split("-")[0].split("p")[0].split("b")[0]
+        parts = [int(x) for x in clean.split(".") if x.isdigit()]
+        return tuple(parts) if parts else None
+    except Exception:
+        return None
+
+
+def _version_in_range(detected_ver, start_incl, start_excl, end_incl, end_excl):
+    """Return True if detected_ver falls within a CVE's affected version range."""
+    v = _parse_version(detected_ver)
+    if v is None:
+        return True  # can't parse — don't filter out
+    if start_incl:
+        s = _parse_version(start_incl)
+        if s and v < s:
+            return False
+    if start_excl:
+        s = _parse_version(start_excl)
+        if s and v <= s:
+            return False
+    if end_incl:
+        e = _parse_version(end_incl)
+        if e and v > e:
+            return False
+    if end_excl:
+        e = _parse_version(end_excl)
+        if e and v >= e:
+            return False
+    return True
+
+
+def _cve_affects_version(cve, detected_ver):
+    """Check whether the CVE's version ranges include detected_ver.
+    Returns True if no version data is present (can't disprove applicability)."""
+    if not detected_ver:
+        return True
+
+    nodes = []
+    for config in cve.get("configurations", []):
+        nodes.extend(config.get("nodes", []))
+
+    if not nodes:
+        return True
+
+    for node in nodes:
+        for match in node.get("cpeMatch", []):
+            if not match.get("vulnerable", False):
+                continue
+            if _version_in_range(
+                detected_ver,
+                match.get("versionStartIncluding"),
+                match.get("versionStartExcluding"),
+                match.get("versionEndIncluding"),
+                match.get("versionEndExcluding"),
+            ):
+                return True
+
+    return False
+
+
+def _lookup_cves(cpe=None, keyword=None, detected_ver=None, nvd_api_key=None):
+    try:
+        headers = {}
+        if nvd_api_key:
+            headers["apiKey"] = nvd_api_key
+
         if cpe:
             cpe23 = _cpe22_to_23(cpe)
             if not cpe23:
                 return []
-            params = {"cpeName": cpe23, "resultsPerPage": 5}
+            params = {
+                "cpeName": cpe23,
+                "cvssV3Severity": "HIGH,CRITICAL",
+                "resultsPerPage": 10,
+            }
         else:
-            params = {"keywordSearch": keyword, "resultsPerPage": 3}
+            params = {
+                "keywordSearch": keyword,
+                "cvssV3Severity": "HIGH,CRITICAL",
+                "resultsPerPage": 5,
+            }
 
-        r = requests.get(_NVD_URL, params=params, timeout=_NVD_TIMEOUT)
+        r = requests.get(_NVD_URL, params=params, headers=headers, timeout=_NVD_TIMEOUT)
         cves = []
         for item in r.json().get("vulnerabilities", []):
             cve = item.get("cve", {})
@@ -132,6 +209,10 @@ def _lookup_cves(cpe=None, keyword=None):
                 if entries:
                     severity = entries[0].get("cvssData", {}).get("baseSeverity", "")
                     break
+
+            if not _cve_affects_version(cve, detected_ver):
+                print(f"[scanner] Skipping {cve_id} — version range doesn't match {detected_ver}")
+                continue
 
             cves.append({"id": cve_id, "severity": severity, "description": desc})
         return cves
@@ -168,7 +249,7 @@ def _calc_risk(ports, vulnerabilities):
     return "none"
 
 
-def scan_host(ip, timeout=120):
+def scan_host(ip, timeout=120, nvd_api_key=None):
     """Full nmap scan of a single host. Returns dict ready for POST /api/scans/private.
     Also includes '_os' key (stripped before DB push) for use in Groq prompt."""
     print(f"[scanner] Scanning {ip}")
@@ -220,10 +301,10 @@ def scan_host(ip, timeout=120):
         queried.add(key)
 
         if cpe:
-            cves = _lookup_cves(cpe=cpe)
+            cves = _lookup_cves(cpe=cpe, detected_ver=version, nvd_api_key=nvd_api_key)
         elif product:
             keyword = f"{product} {version}".strip() if version else product
-            cves = _lookup_cves(keyword=keyword)
+            cves = _lookup_cves(keyword=keyword, detected_ver=version, nvd_api_key=nvd_api_key)
         else:
             continue
 
@@ -272,10 +353,11 @@ def _discover_hosts(subnet):
     return hosts
 
 
-async def run_lan_scan(wifi_manager, api_client, display=None):
+async def run_lan_scan(wifi_manager, api_client, display=None, cfg=None):
     subnet = wifi_manager.get_subnet_base()
     ssid = wifi_manager.get_ssid()
     bssid = wifi_manager.get_bssid()
+    nvd_api_key = (cfg or {}).get("nvd_api_key", "")
 
     if not subnet:
         print("[scanner] Could not determine subnet.")
@@ -289,7 +371,7 @@ async def run_lan_scan(wifi_manager, api_client, display=None):
         if display:
             display.show_progress(f"Scanning {ip}", i + 1, len(hosts))
 
-        result = scan_host(ip)
+        result = scan_host(ip, nvd_api_key=nvd_api_key)
         if result:
             result["network_ssid"] = ssid
             result["network_bssid"] = bssid
