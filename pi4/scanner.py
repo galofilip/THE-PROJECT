@@ -180,17 +180,9 @@ def _lookup_cves(cpe=None, keyword=None, detected_ver=None, nvd_api_key=None):
             cpe23 = _cpe22_to_23(cpe)
             if not cpe23:
                 return []
-            params = {
-                "cpeName": cpe23,
-                "cvssV3Severity": "HIGH,CRITICAL",
-                "resultsPerPage": 10,
-            }
+            params = {"cpeName": cpe23, "resultsPerPage": 20}
         else:
-            params = {
-                "keywordSearch": keyword,
-                "cvssV3Severity": "HIGH,CRITICAL",
-                "resultsPerPage": 5,
-            }
+            params = {"keywordSearch": keyword, "resultsPerPage": 10}
 
         r = requests.get(_NVD_URL, params=params, headers=headers, timeout=_NVD_TIMEOUT)
         cves = []
@@ -213,6 +205,12 @@ def _lookup_cves(cpe=None, keyword=None, detected_ver=None, nvd_api_key=None):
                 if entries:
                     severity = entries[0].get("cvssData", {}).get("baseSeverity", "")
                     break
+
+            # Only keep HIGH and CRITICAL — NVD's cvssV3Severity param doesn't accept
+            # comma-separated values so we filter here instead
+            if severity not in ("HIGH", "CRITICAL"):
+                print(f"[scanner] Skipping {cve_id} — severity {severity or 'none'} not HIGH/CRITICAL")
+                continue
 
             if not _cve_affects_version(cve, detected_ver):
                 print(f"[scanner] Skipping {cve_id} — version range doesn't match {detected_ver}")
