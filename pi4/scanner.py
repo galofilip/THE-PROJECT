@@ -24,6 +24,10 @@ def _run_nmap(args, timeout=120):
             ["sudo", "nmap"] + args + ["-oX", "-"],
             capture_output=True, text=True, timeout=timeout
         )
+        if result.stderr:
+            print(f"[scanner] nmap stderr: {result.stderr[:300]}")
+        if not result.stdout.strip():
+            print(f"[scanner] nmap returned empty stdout (exit code {result.returncode})")
         return result.stdout
     except subprocess.TimeoutExpired:
         print("[scanner] nmap timed out")
