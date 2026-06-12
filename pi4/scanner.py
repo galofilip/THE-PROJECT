@@ -235,7 +235,8 @@ def _calc_risk(ports, vulnerabilities):
     ftp_anon = script_findings.get("ftp-anon", "")
     if ftp_anon and "allowed" in ftp_anon.lower():
         return "high"
-    if "mysql-empty-password" in script_findings:
+    mysql_pw = script_findings.get("mysql-empty-password", "")
+    if mysql_pw and "not allowed" not in mysql_pw.lower() and "error" not in mysql_pw.lower():
         return "high"
     smb_mode = script_findings.get("smb-security-mode", "")
     if "disabled" in smb_mode:
