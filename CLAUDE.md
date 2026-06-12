@@ -12,7 +12,7 @@ B33 is a portable penetration testing device for **educational purposes only**. 
 - ✅ Phase 5.5: Pi 4 hardware setup — OS flashed to USB stick, SSH working, OLED wired and confirmed working (SH1106 driver)
 - ✅ Phase 6a: AI exploit generation (Gemini 2.5 Pro) + human review UI — fully working. Fixed: scan endpoints needed EitherAuthMiddleware (was JWT-only)
 - ✅ Phase 6a.5: Scanner rewrite — nmap-based scanning with version detection, OS fingerprinting, NSE scripts, CPE-based NVD queries, enriched Groq prompt. Tested and working.
-- ⏳ Phase 6a.6: CVE matching quality — NVD returning old/irrelevant CVEs (e.g. CVE-2007 for OpenSSH 10). Need version filtering, severity filtering, better CPE matching. See Scanner Limitations section.
+- ✅ Phase 6a.6: CVE matching quality — fixed severity filtering (Python-level HIGH/CRITICAL check after NVD fetch), version range validation against CVE configurations, NVD API key support, mysql-empty-password false positive fix, config.py auto-detects /boot/firmware/ vs /boot/. Tested: dnsmasq 2.51 returns 11 real CVEs (3 CRITICAL), old junk like CVE-2007-2768 correctly filtered.
 - ⏳ Phase 6b: Backdoor agent binary, persistence, C2 web UI
 - ⏳ Phase 7: Public IP scanner (server-side)
 
@@ -195,9 +195,8 @@ The nmap-based scanner (`pi4/scanner.py`) is a first working version. If scannin
 - "Conditions found" section is only as good as what NSE scripts detected — missing conditions = less targeted exploit
 - `impacket` is listed as allowed but may not be installed on the Pi — add to `requirements.txt` before relying on it
 
-### Future improvements to consider (next session: Phase 6a.6)
-- **CVE version filtering** — NVD returns old CVEs that don't apply to current versions (tested: CVE-2007-2768 returned for OpenSSH 10.0p2). Fix: add `versionStart`/`versionEnd` filtering or cross-check CVE's affected version ranges against detected version before including in results.
-- **Severity filtering** — query NVD with `cvssV3Severity=HIGH,CRITICAL` to skip low-noise CVEs
-- **NVD API key** (free, no sign-up needed) removes rate limit — add `nvd_api_key` to `b33_settings.json` and pass as `apiKey` header
+### Remaining future improvements
 - **Cache NVD results** locally to avoid repeat queries for the same service/version
-- Version fingerprinting beyond nmap (e.g. HTTP `Server:` header parsing, SSH banner parsing)
+- **Version fingerprinting beyond nmap** (e.g. HTTP `Server:` header parsing, SSH banner parsing)
+- **Targets with no version exposed** (e.g. MySQL rejecting connection) will always return 0 CVEs — no fix without version info
+- **scan_timeout in b33_settings.json** should be 120 for nmap (0.5 was for old TCP scanner) — only affects single-host task queue scans, not full LAN scan
