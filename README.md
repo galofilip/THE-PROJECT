@@ -2,6 +2,8 @@
 
 > **⚠️ EDUCATIONAL USE ONLY**: This device is built strictly for educational purposes and personal learning. It will NOT be sold or distributed to prevent misuse.
 
+(project still unfinished)
+
 ## Table of Contents
 
 - [Project Overview](#project-overview)
@@ -16,6 +18,7 @@
 - [Cost and Time Estimates](#cost-and-time-estimates)
 - [Future Enhancements](#future-enhancements)
 
+> **🚧 project still unfinished
 ---
 
 ## Project Overview
